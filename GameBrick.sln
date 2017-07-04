@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 14
+VisualStudioVersion = 14.0.24720.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GameBrick", "GameBrick\GameBrick.csproj", "{FDB41923-57DF-4365-9280-8A7D5AEC9CFC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GameBrick.SdlHost", "GameBrick.Host\GameBrick.SdlHost.csproj", "{CC439ED1-1803-4AA7-98FA-BC81E8E638BB}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{FDB41923-57DF-4365-9280-8A7D5AEC9CFC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FDB41923-57DF-4365-9280-8A7D5AEC9CFC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FDB41923-57DF-4365-9280-8A7D5AEC9CFC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FDB41923-57DF-4365-9280-8A7D5AEC9CFC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CC439ED1-1803-4AA7-98FA-BC81E8E638BB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CC439ED1-1803-4AA7-98FA-BC81E8E638BB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CC439ED1-1803-4AA7-98FA-BC81E8E638BB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CC439ED1-1803-4AA7-98FA-BC81E8E638BB}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
