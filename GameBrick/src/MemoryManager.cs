@@ -30,26 +30,21 @@ namespace Cavernlore.GameBrick
             0x21, 0x04, 0x01, 0x11, 0xA8, 0x00, 0x1A, 0x13, 0xBE, 0x20, 0xFE, 0x23, 0x7D, 0xFE, 0x34, 0x20,
             0xF5, 0x06, 0x19, 0x78, 0x86, 0x23, 0x05, 0x20, 0xFB, 0x86, 0x20, 0xFE, 0x3E, 0x01, 0xE0, 0x50
         };
-        public byte[] cartridgeRom;
-        public byte[] workingRam;
+        public byte[] cartridgeRom; //Full cartridge rom image from file
+        public byte[] workingRam; //Internal C000-DFFF ram
         public byte[] extendedRam;
         public byte[] zeroPageRam;
 
         public byte interruptEnable;
         public byte interruptFlags;
 
-        public byte divTimer; //0xFF04;
-        public byte timer; //0xFF05;
-        public byte timerModulo; //0xFF06;
-        public byte timerControl; //0xFF07;
-
         public byte cartridgeType;
-        public ushort romOffset;
+        public ushort romOffset; //Offset into cartridgeRom based on bank we are switched into
 
-        public bool memoryBank_ramOn;
-        public byte memoryBank_romBank;
-        public byte memoryBank_ramBank;
-        public byte memoryBank_mode;
+        public bool memoryBank_ramOn; //(Write to 0000-1FFF) Is cartridge RAM read/write enabled (write 0x0A to enable, anything else to disable)
+        public byte memoryBank_romBank; //(Write to 2000-3FFF) Map the selected ROM bank to 4000-7FFF (0 and 1 both map BANK1)
+        public byte memoryBank_ramBank; //(Write to 4000-5FFF) Map the selected RAM bank to A000-BFFF (if in 16/8 mode, set the two most significant ROM address lines (effectively multiplying memoryBank_romBank by 0-3)
+        public bool memoryBank_mode; //(Write to 6000-7FFF) false=16Mbit ROM/8KB RAM, true=4Mbit ROM/32KB RAM
 
 
         //Memory addresses
@@ -63,7 +58,7 @@ namespace Cavernlore.GameBrick
 
         private GPU _gpu;
         private Input _input;
-
+        private Timer _timer;
 
         public MemoryManager()
         {
@@ -81,6 +76,11 @@ namespace Cavernlore.GameBrick
             _input = input;
         }
 
+        public void SetTimer(Timer timer)
+        {
+            _timer = timer;
+        }
+
         public void Reset()
         {
             workingRam = new byte[0x2000];
@@ -90,13 +90,13 @@ namespace Cavernlore.GameBrick
             interruptEnable = 0;
             interruptFlags = 0;
 
-            divTimer = 0;
-            timer = 0;
-            timerModulo = 0;
-            timerControl = 0;
-
             cartridgeType = 0;
             romOffset = 0x4000;
+
+            memoryBank_ramOn = true;
+            memoryBank_romBank = 1;
+            memoryBank_ramBank = 0;
+            memoryBank_mode = false;
         }
 
         public byte ReadByte(ushort address)
@@ -126,9 +126,9 @@ namespace Cavernlore.GameBrick
                 case 0x5000:
                 case 0x6000:
                 case 0x7000:
-                    return cartridgeRom[address];
+                    return cartridgeRom[address + romOffset*memoryBank_romBank - 0x4000];
                     break;
-                    //TODO: Add rom bank switching
+                    //TODO: Add 16/8 mode switching
 
                     //VRAM
                 case 0x8000:
@@ -142,6 +142,7 @@ namespace Cavernlore.GameBrick
                 case 0xC000: case 0xD000: case 0xE000:
                     return workingRam[address & 0x1FFF];
                     break;
+                    //TODO: Add switching
 
                 case 0xF000:
                     switch (address & 0x0F00)
@@ -193,15 +194,25 @@ namespace Cavernlore.GameBrick
                                     case 0x00:
                                         switch (address & 0xF)
                                         {
+                                                //Input buttons
                                             case 0:
                                                 _input.ReadByte();
                                                 break;
-                                            case 4:
-                                            case 5:
-                                            case 6:
-                                            case 7:
-                                                throw new NotImplementedException();
+                                                //Serial IO
+                                            case 1:
+                                            case 2:
+                                                //throw new NotImplementedException();
                                                 break;
+                                                //Timer
+                                            case 4:
+                                                return _timer.Divider;
+                                            case 5:
+                                                return _timer.Counter;
+                                            case 6:
+                                                return _timer.Modulo;
+                                            case 7:
+                                                return _timer.Control;
+                                                //8-E - Unused
                                             case 8:
                                             case 9:
                                             case 10:
@@ -211,6 +222,7 @@ namespace Cavernlore.GameBrick
                                             case 14:
                                                 throw new NotImplementedException();
                                                 break;
+                                                //Interrupt status
                                             case 15:
                                                 return interruptFlags;
                                                 break;
@@ -255,34 +267,24 @@ namespace Cavernlore.GameBrick
         {
             switch (address & 0xF000)
             {
-
+                //ROM addresses, memory bank switching instructions are intercepted here
                 case 0x0000:
                 case 0x1000:
-                    switch (cartridgeType)
-                    {
-                        case 1:
-                            memoryBank_ramOn = (value & 0xF) == 0xA;
-                            break;
-                        default:
-                            //throw new NotImplementedException();
-                            break;
-                    }
+                    memoryBank_ramOn = (value & 0xF) == 0xA;
                     break;
                 case 0x2000:
                 case 0x3000:
-                    //throw new NotImplementedException();
+                    memoryBank_romBank = value;
+                    Console.WriteLine("Switched ROM to " + value);
                     break;
-
-                //ROM bank 1
                 case 0x4000:
                 case 0x5000:
-                    throw new NotImplementedException();
+                    memoryBank_ramBank = value;
                     break;
                 case 0x6000:
                 case 0x7000:
-                    throw new NotImplementedException();
+                    memoryBank_mode = value > 0;
                     break;
-                //TODO: Add rom bank switching
 
                 //VRAM
                 case 0x8000:
@@ -362,16 +364,16 @@ namespace Cavernlore.GameBrick
                                                 //throw new NotImplementedException(); //Serial IO
                                                 break;
                                             case 4:
-                                                divTimer = 0; //Reset divTimer
+                                                _timer.Divider = 0; //Reset divTimer
                                                 break;
                                             case 5:
-                                                timer = value;
+                                                _timer.Counter = value;
                                                 break;
                                             case 6:
-                                                timerModulo = value;
+                                                _timer.Modulo = value;
                                                 break;
                                             case 7:
-                                                timerControl = value;
+                                                _timer.Control = value;
                                                 break;
                                             case 8:
                                             case 9:

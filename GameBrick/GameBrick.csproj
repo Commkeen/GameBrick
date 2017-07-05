@@ -47,6 +47,7 @@
     <Compile Include="src\Input.cs" />
     <Compile Include="src\Keys.cs" />
     <Compile Include="src\MemoryManager.cs" />
+    <Compile Include="src\Timer.cs" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Properties\" />

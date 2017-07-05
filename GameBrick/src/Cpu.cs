@@ -5,9 +5,9 @@ namespace Cavernlore.GameBrick
     public class Cpu
     {
         private MemoryManager _mmu;
+        private Timer _timer;
 
         public int machineClock;
-        public int cycleClock;
 
         public int lastMachineClock;
         public int lastCycleClock;
@@ -41,8 +41,8 @@ namespace Cavernlore.GameBrick
         {
             ConstructInstructionMap();
             ResetState();
-            //programCounter = 0x0100;
-            //showDebug = true;
+            programCounter = 0x0100;
+            showDebug = true;
         }
 
         public void SetMemoryManager(MemoryManager memManager)
@@ -50,16 +50,21 @@ namespace Cavernlore.GameBrick
             _mmu = memManager;
         }
 
+        public void SetTimer(Timer timer)
+        {
+            _timer = timer;
+        }
+
         public void Execute()
         {
             if (programCounter == 0x0100)
                 _mmu.inBios = false;
 
-
-            if (showDebug)
+            if (showDebug && !halt)
             {
                 WriteDebugLine();
             }
+
 
             if (halt)
             {
@@ -76,6 +81,15 @@ namespace Cavernlore.GameBrick
                 }
             }
             lastCycleClock = lastMachineClock * 4;
+            IncrementTimers(lastMachineClock);
+        }
+
+        private void IncrementTimers(int lastMachineClock)
+        {
+            if (_timer.IncrementTimers(lastMachineClock))
+            {
+                _mmu.interruptFlags = _mmu.interruptFlags.SetBit(2);
+            }
         }
 
         private void WriteDebugLine()
@@ -85,29 +99,32 @@ namespace Cavernlore.GameBrick
             byte nextByte = _mmu.ReadByte((ushort)(programCounter + 1));
             Console.Write(programCounter.ToString("x4") + " -- ");
             Console.Write(thisByte.ToString("x2") + " " + thisFunc + " " + nextByte.ToString("x2"));
-            Console.Write("  A={0} F={3} BC={4} DE={5} HL={1} SP={2}",
+            Console.Write("  A={0} F={3} BC={4} DE={5} HL={1} SP={2} T={6}",
                 registerA.ToString("x2"), registerHL.ToString("x4"), stackPointer.ToString("x4"), registerF.ToString("x2"),
-                registerBC.ToString("x4"), registerDE.ToString("x4"));
+                registerBC.ToString("x4"), registerDE.ToString("x4"), _timer.Counter.ToString("x2"));
             Console.WriteLine();
         }
 
         public void CheckInterrupts()
         {
+            
+            byte interruptFired = (byte)(_mmu.interruptEnable & _mmu.interruptFlags);
+            if (interruptFired == 0) { return; }
+
+            halt = false;
             if (!interruptMasterFlag)
                 return;
-            byte interruptFired = (byte)(_mmu.interruptEnable & _mmu.interruptFlags);
-            if ((interruptFired & 1) > 0) { _mmu.interruptFlags &= 0xFE; RST40(); }
-            else if ((interruptFired & 2) > 0) { _mmu.interruptFlags &= 0xFD; RST48(); }
-            else if ((interruptFired & 4) > 0) { _mmu.interruptFlags &= 0xFB; RST50(); }
-            else if ((interruptFired & 8) > 0) { _mmu.interruptFlags &= 0xF7; RST58(); }
-            else if ((interruptFired & 16) > 0) { _mmu.interruptFlags &= 0xEF; RST60(); }
-            else { interruptMasterFlag = true; }
+            interruptMasterFlag = false;
+            if ((interruptFired & 1) > 0) { _mmu.interruptFlags &= 0xFE; RST40(); } //vblank
+            else if ((interruptFired & 2) > 0) { _mmu.interruptFlags &= 0xFD; RST48(); } //lcdc
+            else if ((interruptFired & 4) > 0) { _mmu.interruptFlags &= 0xFB; RST50(); } //timer
+            else if ((interruptFired & 8) > 0) { _mmu.interruptFlags &= 0xF7; RST58(); } //serial
+            else if ((interruptFired & 16) > 0) { _mmu.interruptFlags &= 0xEF; RST60(); } //input
         }
 
         private void ResetState()
         {
             machineClock = 0;
-            cycleClock = 0;
             lastMachineClock = 0;
             lastCycleClock = 0;
 
@@ -176,7 +193,7 @@ namespace Cavernlore.GameBrick
                 new Instruction(INCr_h),
                 new Instruction(DECr_h),
                 new Instruction(LDrn_h),
-                new Instruction(XX),
+                new Instruction(DAA),
                 new Instruction(JRZn),
                 new Instruction(ADDHLHL),
                 new Instruction(LDAHLI),
@@ -929,11 +946,11 @@ namespace Cavernlore.GameBrick
             int signedResult = a - b;
             if (useCarryFlag && fC) { signedResult--; }
             fN = true;
-            fC = true;
+            fC = false;
             if (signedResult < 0)
             {
                 signedResult = 256 + signedResult;
-                fC = false;
+                fC = true;
             }
             fZ = signedResult == 0; //Check for 0
             fH = (a.LowerNibble() - b.LowerNibble() < 0);
@@ -973,15 +990,15 @@ namespace Cavernlore.GameBrick
         private void CPn() { int i = registerA; int m = _mmu.ReadByte(programCounter); i -= m; programCounter++; registerF = (byte)((i < 0) ? 0x50 : 0x40); i &= 255; if (i == 0) { registerF |= 0x80; } if (((registerA ^ i ^ m) & 0x10) > 0) { registerF |= 0x20; } lastMachineClock = 2; }
         //...
 
-        private void ANDr_b() { throw new NotImplementedException(); }
-        private void ANDr_c() { registerA &= registerC; registerF = (byte)(registerA > 0 ? 0 : 0x80); lastMachineClock = 1; }
-        private void ANDr_d() { throw new NotImplementedException(); }
-        private void ANDr_e() { throw new NotImplementedException(); }
-        private void ANDr_h() { throw new NotImplementedException(); }
-        private void ANDr_l() { throw new NotImplementedException(); }
-        private void ANDr_a() { registerA &= registerA; registerF = (byte)(registerA > 0 ? 0 : 0x80); lastMachineClock = 1; }
-        private void ANDHL() { throw new NotImplementedException(); }
-        private void ANDn() { registerA &= _mmu.ReadByte(programCounter); programCounter++; registerF = (byte)(registerA > 0 ? 0 : 0x80); lastMachineClock = 2; }
+        private void ANDr_b() { registerA &= registerB; registerF = 0; fH = true; fZ = registerA == 0; lastMachineClock = 1; }
+        private void ANDr_c() { registerA &= registerC; registerF = 0; fH = true; fZ = registerA == 0; lastMachineClock = 1; }
+        private void ANDr_d() { registerA &= registerD; registerF = 0; fH = true; fZ = registerA == 0; lastMachineClock = 1; }
+        private void ANDr_e() { registerA &= registerE; registerF = 0; fH = true; fZ = registerA == 0; lastMachineClock = 1; }
+        private void ANDr_h() { registerA &= registerH; registerF = 0; fH = true; fZ = registerA == 0; lastMachineClock = 1; }
+        private void ANDr_l() { registerA &= registerL; registerF = 0; fH = true; fZ = registerA == 0; lastMachineClock = 1; }
+        private void ANDr_a() { registerA &= registerA; registerF = 0; fH = true; fZ = registerA == 0; lastMachineClock = 1; }
+        private void ANDHL() { registerA &= _mmu.ReadByte(registerHL); registerF = 0; fH = true; fZ = registerA == 0; lastMachineClock = 2; }
+        private void ANDn() { registerA &= _mmu.ReadByte(programCounter); programCounter++; registerF = 0; fH = true; fZ = registerA == 0; lastMachineClock = 2; }
 
         //...
 
@@ -1163,9 +1180,10 @@ namespace Cavernlore.GameBrick
         private void RRA() { RRr_a(); lastMachineClock = 1; }
         private void RRCA() { throw new NotImplementedException(); }
 
-        private void RLr_b() { throw new NotImplementedException(); }
-        private void RLr_c() { int ci = (registerF & 0x10) > 0 ? 1 : 0; int co = (registerC & 0x80) > 0 ? 0x10 : 0; registerC = (byte)((registerC << 1) + ci); registerF = (byte)((registerC > 0) ? 0 : 0x80); registerF = (byte)((registerF & 0xEF) + co); lastMachineClock += 2; }
-        private void RLr_d() { throw new NotImplementedException(); }
+        private byte RLHelper(byte value) { bool oldC = fC; registerF = 0; fC = value.GetBit(7); value = value.ShiftLeft(); if (oldC) { value = value.SetBit(0); } fZ = (value == 0); lastMachineClock = 2; return value; }
+        private void RLr_b() { registerB = RLHelper(registerB); }
+        private void RLr_c() { registerC = RLHelper(registerC); }
+        private void RLr_d() { registerD = RLHelper(registerD); }
         private void RLr_e() { throw new NotImplementedException(); }
         private void RLr_h() { throw new NotImplementedException(); }
         private void RLr_l() { throw new NotImplementedException(); }
@@ -1180,7 +1198,7 @@ namespace Cavernlore.GameBrick
         private void RLCr_h() { registerH = RLCHelper(registerH); }
         private void RLCr_l() { registerL = RLCHelper(registerL); }
         private void RLCr_a() { registerA = RLCHelper(registerA); }
-        private void RLCHL() { _mmu.WriteByte(registerHL, _mmu.ReadByte(registerHL)); lastMachineClock += 2; }
+        private void RLCHL() { _mmu.WriteByte(registerHL, RLCHelper(_mmu.ReadByte(registerHL))); lastMachineClock += 2; }
 
         private byte RRHelper(byte value) { bool oldC = fC; registerF = 0; fC = value.GetBit(0); value = value.ShiftRight(); if (oldC) { value = value.SetBit(7); } fZ = (value == 0); lastMachineClock = 2; return value; }
         private void RRr_b() { registerB = RRHelper(registerB); }
@@ -1201,34 +1219,27 @@ namespace Cavernlore.GameBrick
         private void RRCr_a() { throw new NotImplementedException(); }
         private void RRCHL() { throw new NotImplementedException(); }
 
-        private void SLAr_b() { throw new NotImplementedException(); }
-        private void SLAr_c() { throw new NotImplementedException(); }
-        private void SLAr_d() { throw new NotImplementedException(); }
-        private void SLAr_e() { throw new NotImplementedException(); }
-        private void SLAr_h() { throw new NotImplementedException(); }
-        private void SLAr_l() { throw new NotImplementedException(); }
-        private void SLAr_a() { throw new NotImplementedException(); }
-        private void SLAHL() { throw new NotImplementedException(); }
+        private byte SLAHelper(byte value) { registerF = 0; fC = value.GetBit(7); value = value.ShiftLeft(); fZ = (value == 0); lastMachineClock = 2; return value; }
+        private void SLAr_b() { registerB = SLAHelper(registerB); }
+        private void SLAr_c() { registerC = SLAHelper(registerC); }
+        private void SLAr_d() { registerD = SLAHelper(registerD); }
+        private void SLAr_e() { registerE = SLAHelper(registerE); }
+        private void SLAr_h() { registerH = SLAHelper(registerH); }
+        private void SLAr_l() { registerL = SLAHelper(registerL); }
+        private void SLAr_a() { registerA = SLAHelper(registerA); }
+        private void SLAHL() { _mmu.WriteByte(registerHL, SLAHelper(_mmu.ReadByte(registerHL))); lastMachineClock += 2; }
 
-        private void SLLr_b() { throw new NotImplementedException(); }
-        private void SLLr_c() { throw new NotImplementedException(); }
-        private void SLLr_d() { throw new NotImplementedException(); }
-        private void SLLr_e() { throw new NotImplementedException(); }
-        private void SLLr_h() { throw new NotImplementedException(); }
-        private void SLLr_l() { throw new NotImplementedException(); }
-        private void SLLr_a() { throw new NotImplementedException(); }
-        private void SLLHL() { throw new NotImplementedException(); }
+        private byte SRAHelper(byte value) { bool oldMSB = value.GetBit(7); registerF = 0; fC = value.GetBit(0); value = value.ShiftRight(); if (oldMSB) { value = value.SetBit(7); } fZ = (value == 0); lastMachineClock = 2; return value; }
+        private void SRAr_b() { registerB = SRAHelper(registerB); }
+        private void SRAr_c() { registerC = SRAHelper(registerC); }
+        private void SRAr_d() { registerD = SRAHelper(registerD); }
+        private void SRAr_e() { registerE = SRAHelper(registerE); }
+        private void SRAr_h() { registerH = SRAHelper(registerH); }
+        private void SRAr_l() { registerL = SRAHelper(registerL); }
+        private void SRAr_a() { registerA = SRAHelper(registerA); }
+        private void SRAHL() { _mmu.WriteByte(registerHL, SRAHelper(_mmu.ReadByte(registerHL))); lastMachineClock += 2; }
 
-        private void SRAr_b() { throw new NotImplementedException(); }
-        private void SRAr_c() { throw new NotImplementedException(); }
-        private void SRAr_d() { throw new NotImplementedException(); }
-        private void SRAr_e() { throw new NotImplementedException(); }
-        private void SRAr_h() { throw new NotImplementedException(); }
-        private void SRAr_l() { throw new NotImplementedException(); }
-        private void SRAr_a() { throw new NotImplementedException(); }
-        private void SRAHL() { throw new NotImplementedException(); }
-
-        private byte SRLHelper(byte value) { registerF = 0; fC = value.GetBit(0); value = value.ShiftRight(1); fZ = (value == 0); lastMachineClock = 2; return value; }
+        private byte SRLHelper(byte value) { registerF = 0; fC = value.GetBit(0); value = value.ShiftRight(); fZ = (value == 0); lastMachineClock = 2; return value; }
         private void SRLr_b() { registerB = SRLHelper(registerB); }
         private void SRLr_c() { registerC = SRLHelper(registerC); }
         private void SRLr_d() { registerD = SRLHelper(registerD); }
@@ -1238,10 +1249,32 @@ namespace Cavernlore.GameBrick
         private void SRLr_a() { registerA = SRLHelper(registerA); }
         private void SRLHL() { _mmu.WriteByte(registerHL, SRLHelper(_mmu.ReadByte(registerHL))); lastMachineClock += 2; }
 
+        
         private void CPL() { registerA ^= 255; registerF = (byte)(registerA > 0 ? 0 : 0x80); lastMachineClock = 1; }
         private void NEG() { throw new NotImplementedException(); }
         private void CCF() { throw new NotImplementedException(); }
         private void SCF() { throw new NotImplementedException(); }
+
+        private void DAA()
+        {
+            int result = registerA;
+            if (!fN)
+            {
+                if (fH || registerA.LowerNibble() > 9) { result += 6; }
+                if (fC || registerA > 0x9F) { result += 0x60; }
+            }
+            else
+            {
+                if (fH) { result = (result - 6) & 0xFF; }
+                if (fC) { result -= 0x60; }
+            }
+            fH = false;
+            fC = result > 255;
+            result &= 0xFF;
+            fZ = result == 0;
+            registerA = (byte)result;
+            lastMachineClock = 1;
+        }
 
         #endregion
 
@@ -1285,10 +1318,10 @@ namespace Cavernlore.GameBrick
 
         //Call routine at position
         private void CALLnn() { stackPointer -= 2; _mmu.WriteWord(stackPointer, (ushort)(programCounter + 2)); programCounter = _mmu.ReadWord(programCounter); lastMachineClock = 5; }
-        private void CALLNZnn() { if (!fZ) CALLnn(); }
-        private void CALLZnn() { if (fZ) CALLnn(); }
-        private void CALLNCnn() { if (!fC) CALLnn(); }
-        private void CALLCnn() { if (fC) CALLnn(); }
+        private void CALLNZnn() { if (!fZ) { CALLnn(); } else { programCounter += 2; } }
+        private void CALLZnn() { if (fZ) { CALLnn(); } else { programCounter += 2; } }
+        private void CALLNCnn() { if (!fC) { CALLnn(); } else { programCounter += 2; } }
+        private void CALLCnn() { if (fC) { CALLnn(); } else { programCounter += 2; } }
 
         //Return to calling routine
         private void RET()   { programCounter = _mmu.ReadWord(stackPointer); stackPointer += 2; lastMachineClock = 3; }

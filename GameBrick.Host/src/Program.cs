@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -8,18 +9,24 @@ namespace Cavernlore.GameBrick
     {
         public static void Main()
         {
+            //Console.SetOut(new StreamWriter(new FileStream(@"..\debugLog.txt", FileMode.OpenOrCreate, FileAccess.Write)));
+
             MemoryManager mem = new MemoryManager();
             Cpu z80 = new Cpu();
             GPU gpu = new GPU();
             Input input = new Input();
+            Timer timer = new Timer();
 
             z80.SetMemoryManager(mem);
+            z80.SetTimer(timer);
             mem.SetGPU(gpu);
             mem.SetInput(input);
+            mem.SetTimer(timer);
             gpu.SetMMU(mem);
             input.SetMMU(mem);
+            
 
-            mem.LoadCartridge(@"..\assets\individual\07-jr,jp,call,ret,rst.gb");
+            mem.LoadCartridge(@"..\assets\pokemon.gb");
 
             RenderWindow window = new RenderWindow();
             window.SetCPU(z80);
