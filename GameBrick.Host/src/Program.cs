@@ -26,7 +26,7 @@ namespace Cavernlore.GameBrick
             input.SetMMU(mem);
             
 
-            mem.LoadCartridge(@"..\assets\pokemon.gb");
+            mem.LoadCartridge(@"..\assets\cpu_instrs.gb");
 
             RenderWindow window = new RenderWindow();
             window.SetCPU(z80);
