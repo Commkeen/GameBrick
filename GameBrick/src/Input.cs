@@ -4,14 +4,14 @@ namespace Cavernlore.GameBrick
     // A bit set to 0 means a button is pressed/a column is active
     public class Input
     {
-        public byte[] keys = { 0x0F, 0x0F }; //Lower 4 bits, swaps out based on which input column is activated
+        public byte[] keys = { 0xCF, 0xCF }; //Lower 4 bits, swaps out based on which input column is activated
         public byte activatedColumn = 0x00;  //Upper 2 bits, this should be the only thing that gets written to by the gb
 
         private MemoryManager _mmu;
 
         public Input()
         {
-
+            Reset();
         }
 
         public void SetMMU(MemoryManager mmu)
@@ -21,7 +21,7 @@ namespace Cavernlore.GameBrick
 
         public void Reset()
         {
-            keys = new byte[] { 0x0F, 0x0F };
+            keys = new byte[] { 0xCF, 0xCF };
             activatedColumn = 0x00;
         }
 

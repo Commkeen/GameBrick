@@ -1,4 +1,7 @@
 ﻿
+using System;
+using System.Collections.Generic;
+
 namespace Cavernlore.GameBrick
 {
     public class GPU
@@ -10,26 +13,32 @@ namespace Cavernlore.GameBrick
         //9C00-9FFF: Tile map #1
         public byte[] graphicsMemory;
 
+        //Tileset #0 is only used for background/window, it is numbered -128 to 127
+        //Tileset #1 can be used for sprites as well as background/window, it is numbered 0-255.
+        //Each 2 bytes represents 1 line of a tile/sprite image (8 2-bit palette values).
+
+
+
         //FE00-FE9F: Sprite info
         public byte[] spriteInformation;
         /*  Each sprite is 8x8 and has 4 bytes of data:
          * Byte 0 = Y coordinate of top left - 16;
          * Byte 1 = X coordinate of top left - 8;
-         * Byte 2 = tile number;
+         * Byte 2 = pattern number (aka offset from 0x8000);
          * Byte 3 = flags: 7=above/below bg; 6=Yflip; 5=Xflip; 4=palette
          */
 
 
         public byte controlFlags; //Read/write
         /*
-         * Byte 0: background on/off
-         * Byte 1: sprites on/off
-         * Byte 2: sprite size (8x8 vs 8x16)
-         * Byte 3: tilemap
-         * Byte 4: tileset
-         * Byte 5: Window on/off
-         * Byte 6: Window tilemap
-         * Byte 7: display on/off
+         * Bit 0: background on/off
+         * Bit 1: sprites on/off
+         * Bit 2: sprite size (8x8 vs 8x16)
+         * Bit 3: tilemap
+         * Bit 4: tileset
+         * Bit 5: Window on/off
+         * Bit 6: Window tilemap
+         * Bit 7: display on/off
          * 
          */
 
@@ -98,9 +107,11 @@ namespace Cavernlore.GameBrick
         const int H_BLANK_TIME = 204;
         const int SCANLINE_TIME = OAM_SCAN_TIME + VRAM_SCAN_TIME + H_BLANK_TIME;
         const int V_BLANK_TIME = SCANLINE_TIME*10;
-
+        
         private GPU_STATE _state;
         private int _gpuClock;
+
+        byte[] PIXEL_VALUES = { 255, 180, 90, 0 };
 
         private MemoryManager _mmu;
 
@@ -191,6 +202,7 @@ namespace Cavernlore.GameBrick
                     return controlFlags;
                     break;
                 case 1:
+                    //FF41: LCDC status
                     break;
                 case 2:
                     return scrollY;
@@ -199,6 +211,10 @@ namespace Cavernlore.GameBrick
                 case 4:
                     return currentScanLine;
                 case 5:
+                    //LY compare
+                    break;
+                case 6:
+                    //DMA transfer, no read
                     break;
                 default:
                     return reg[relativeAddress];
@@ -226,14 +242,27 @@ namespace Cavernlore.GameBrick
                     scrollX = value;
                     break;
                 case 4:
-                    currentScanLine = value;
+                    currentScanLine = 0;
                     break;
                 case 5:
+                    //LY
+                    break;
+                case 6:
+                    //DMA transfer
+                    DMATransfer(value);
                     break;
                 default:
                     //graphicsMemory[relativeAddress] = value;
                     break;
             }
+        }
+
+        //Copies the contents of memory from 0x[value]00-0x[value]A0 to OAM
+        //Called by writing a target value to 0xFF46
+        //Is supposed to take 160 microseconds in parallel with CPU
+        private void DMATransfer(byte value)
+        {
+            spriteInformation = _mmu.ReadDMABlock(value);
         }
 
 
@@ -289,10 +318,10 @@ namespace Cavernlore.GameBrick
                     //Get the pixel value
                     byte pixelValue = (byte)((((lowByte & pixelIndex) > 0) ? 1 : 0) + (((highByte & pixelIndex) > 0) ? 2 : 0));
 
-                    screenData[canvasOffset + 0] = (byte)(255 - (pixelValue * 96));
-                    screenData[canvasOffset + 1] = (byte)(255 - (pixelValue * 96));
-                    screenData[canvasOffset + 2] = (byte)(255 - (pixelValue * 96));
-                    screenData[canvasOffset + 3] = (byte)(255 - (pixelValue * 96));
+                    screenData[canvasOffset + 0] = PIXEL_VALUES[pixelValue];
+                    screenData[canvasOffset + 1] = PIXEL_VALUES[pixelValue];
+                    screenData[canvasOffset + 2] = PIXEL_VALUES[pixelValue];
+                    screenData[canvasOffset + 3] = 255;
                     canvasOffset += 4;
 
                     pixelX++;
@@ -311,6 +340,70 @@ namespace Cavernlore.GameBrick
             //Sprite Render
             if (SpritesOn)
             {
+                byte spriteWidth = 8;
+                byte spriteHeight = 8;
+                if (SpriteSize) { spriteHeight = 16; }
+
+                //Figure out what sprites are on this line
+                //The gameboy can only draw the first 10 sprites on the line!
+                byte[] spritesToDraw = new byte[10];
+                byte numOfSprites = 0;
+                for (byte spriteAddress = 0; spriteAddress < 0xA0 && numOfSprites < 10; spriteAddress+=4) //Each sprite has a 4-byte block of info
+                {
+                    int spriteY = spriteInformation[spriteAddress];
+
+                    if (spriteY > 0)
+                    {
+                        //Sprite coordinates start at 8px to the left and 16px above the upper left corner of the screen
+                        spriteY -= 16;
+
+                        if (spriteY <= currentScanLine && spriteY + spriteHeight >= currentScanLine)
+                        {
+                            spritesToDraw[numOfSprites] = spriteAddress;
+                            numOfSprites++;
+                        }
+                    }
+                }
+
+                //Now we try to draw all the sprites we found
+                for (int i = 0; i < numOfSprites; i++)
+                {
+                    //Get all relevant sprite info
+                    byte spriteAddress = spritesToDraw[i];
+                    int spriteY = spriteInformation[spriteAddress];
+                    int spriteX = spriteInformation[spriteAddress + 1];
+                    ushort spritePatternAddress = (ushort)(spriteInformation[spriteAddress + 2]*0x10);
+                    bool priority = spriteInformation[spriteAddress + 3].GetBit(7);
+                    bool yFlip = spriteInformation[spriteAddress + 3].GetBit(6);
+                    bool xFlip = spriteInformation[spriteAddress + 3].GetBit(5);
+                    bool palette = spriteInformation[spriteAddress + 3].GetBit(4);
+
+                    int spriteLine = currentScanLine - (spriteY - 16);
+                    ushort spriteLineAddress = (ushort)(spritePatternAddress + (spriteLine * 2));
+                    byte lowByte = graphicsMemory[spriteLineAddress];
+                    byte highByte = graphicsMemory[spriteLineAddress + 1];
+
+                    int startOfLineOnCanvas = currentScanLine * 160 * 4;
+                    int pixelX = spriteX - 8;
+                    for (int x = 0; x < 8; x++)
+                    {
+                        byte pixelIndex = (byte)(1 << (7 - x));
+
+                        //Get the pixel value
+                        byte pixelValue = (byte)((((lowByte & pixelIndex) > 0) ? 1 : 0) + (((highByte & pixelIndex) > 0) ? 2 : 0));
+
+                        if (pixelX >= 0 && pixelX < 160)
+                        {
+                            int canvasOffset = startOfLineOnCanvas + (pixelX * 4);
+                            screenData[canvasOffset + 0] = PIXEL_VALUES[pixelValue];
+                            screenData[canvasOffset + 1] = PIXEL_VALUES[pixelValue];
+                            screenData[canvasOffset + 2] = PIXEL_VALUES[pixelValue];
+                            screenData[canvasOffset + 3] = 255;
+                        }
+                        pixelX++;
+                    }
+                }
+
                 //throw new NotImplementedException();
             }
         }

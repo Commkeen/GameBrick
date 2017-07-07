@@ -196,7 +196,7 @@ namespace Cavernlore.GameBrick
                                         {
                                                 //Input buttons
                                             case 0:
-                                                _input.ReadByte();
+                                                return _input.ReadByte();
                                                 break;
                                                 //Serial IO
                                             case 1:
@@ -415,6 +415,39 @@ namespace Cavernlore.GameBrick
         {
             WriteByte(address, (byte)(value & 255));
             WriteByte((ushort)(address + 1), (byte)(value >> 8));
+        }
+
+        //Return a block of A0 bytes for use with DMA transfers.
+        public byte[] ReadDMABlock(byte target)
+        {
+            ushort address = (ushort)(target * 0x100);
+            byte[] result = new byte[0xA0];
+            if (address < 0x4000) //ROM0
+            {
+                Array.Copy(cartridgeRom, address, result, 0, 0xA0);
+            }
+            else if (address < 0x8000) //ROM(switched bank)
+            {
+                Array.Copy(cartridgeRom, address + romOffset * memoryBank_romBank - 0x4000, result, 0, 0xA0);
+            }
+            else if (address < 0xA000) //Graphics ROM
+            {
+                Array.Copy(_gpu.graphicsMemory, address - 0x8000, result, 0, 0xA0);
+            }
+            else if (address < 0xC000)
+            {
+                Array.Copy(extendedRam, address - 0xA000, result, 0, 0xA0);
+            }
+            else if (address < 0xF000)
+            {
+                Array.Copy(workingRam, address - 0xC000, result, 0, 0xA0);
+            }
+            else
+            {
+                throw new NotImplementedException();
+            }
+
+            return result;
         }
 
         public void LoadCartridge(string file)

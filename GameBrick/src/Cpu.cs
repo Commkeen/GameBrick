@@ -41,7 +41,7 @@ namespace Cavernlore.GameBrick
         {
             ConstructInstructionMap();
             ResetState();
-            programCounter = 0x0100;
+            //programCounter = 0x0100;
             //showDebug = true;
         }
 
@@ -59,6 +59,11 @@ namespace Cavernlore.GameBrick
         {
             if (programCounter == 0x0100)
                 _mmu.inBios = false;
+
+            if (programCounter == 0x03F9)
+            {
+                WriteDebugLine();
+            }
 
             if (showDebug && !halt)
             {
