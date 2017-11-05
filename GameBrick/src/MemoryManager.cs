@@ -286,7 +286,7 @@ namespace Cavernlore.GameBrick
                 case 0x2000:
                 case 0x3000:
                     memoryBank_romBank = value;
-                    Console.WriteLine("Switched ROM to " + value);
+                    //Console.WriteLine("Switched ROM to " + value);
                     break;
                 case 0x4000:
                 case 0x5000:

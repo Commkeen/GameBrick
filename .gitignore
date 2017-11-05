@@ -12,3 +12,5 @@ GameBrick/GameBrickMonoProj/obj/
 debugLog\.txt
 
 *.userprefs
+
+GameBrick/obj/

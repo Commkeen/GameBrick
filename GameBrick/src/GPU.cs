@@ -46,38 +46,50 @@ namespace Cavernlore.GameBrick
 
         public bool BackgroundOn
         {
-            get { return (controlFlags & 0x01) > 0; }
-            set { if (value) { controlFlags |= 0x01; } else { controlFlags &= unchecked((byte)(~0x01)); } }
+            get { return controlFlags.GetBit(0); }
+            set { if (value) { controlFlags = controlFlags.SetBit(0); } else { controlFlags = controlFlags.ResetBit(0); } }
         }
 
         public bool SpritesOn
         {
-            get { return (controlFlags & 0x02) > 0; }
-            set { if (value) { controlFlags |= 0x02; } else { controlFlags &= unchecked((byte)(~0x02)); } }
+            get { return controlFlags.GetBit(1); }
+            set { if (value) { controlFlags = controlFlags.SetBit(1); } else { controlFlags = controlFlags.ResetBit(1); } }
         }
 
         public bool SpriteSize
         {
-            get { return (controlFlags & 0x04) > 0; }
-            set { if (value) { controlFlags |= 0x04; } else { controlFlags &= unchecked((byte)(~0x04)); } }
+            get { return controlFlags.GetBit(2); }
+            set { if (value) { controlFlags = controlFlags.SetBit(2); } else { controlFlags = controlFlags.ResetBit(2); } }
         }
 
         public bool BackgroundMapSet
         {
-            get { return (controlFlags & 0x08) > 0; }
-            set { if (value) { controlFlags |= 0x08; } else { controlFlags &= unchecked((byte)(~0x08)); } }
+            get { return controlFlags.GetBit(3); }
+            set { if (value) { controlFlags = controlFlags.SetBit(3); } else { controlFlags = controlFlags.ResetBit(3); } }
         }
 
         public bool BackgroundTileSet
         {
-            get { return (controlFlags & 0x10) > 0; }
-            set { if (value) { controlFlags |= 0x10; } else { controlFlags &= unchecked((byte)(~0x10)); } }
+            get { return controlFlags.GetBit(4); }
+            set { if (value) { controlFlags = controlFlags.SetBit(4); } else { controlFlags = controlFlags.ResetBit(4); } }
+        }
+
+        public bool WindowOn
+        {
+            get { return controlFlags.GetBit(5); }
+            set { if (value) { controlFlags = controlFlags.SetBit(5); } else { controlFlags = controlFlags.ResetBit(5); } }
+        }
+
+        public bool WindowMapSet
+        {
+            get { return controlFlags.GetBit(6); }
+            set { if (value) { controlFlags = controlFlags.SetBit(6); } else { controlFlags = controlFlags.ResetBit(6); } }
         }
 
         public bool ScreenOn
         {
-            get { return (controlFlags & 0x80) > 0; }
-            set { if (value) { controlFlags |= 0x80; } else { controlFlags &= unchecked((byte)(~0x80)); } }
+            get { return controlFlags.GetBit(7); }
+            set { if (value) { controlFlags = controlFlags.SetBit(7); } else { controlFlags = controlFlags.ResetBit(7); } }
         }
 
         #endregion
@@ -89,7 +101,12 @@ namespace Cavernlore.GameBrick
         public byte scrollY; //0xFF42
 
         public byte currentScanLine; //0xFF44, externally readonly
-        public byte backgroundPalette; //0xFF47, externally writeonly
+        public byte backgroundPalette; //0xFF47
+        public byte spritePalette0; //0xFF48
+        public byte spritePalette1; //0xFF49
+
+        public byte windowY; //0xFF4A;
+        public byte windowX; //0xFF4B;
 
         //What's actually on the screen
         public byte[] screenData;
@@ -112,6 +129,7 @@ namespace Cavernlore.GameBrick
         private int _gpuClock;
 
         byte[] PIXEL_VALUES = { 255, 180, 90, 0 };
+        byte DEFAULT_PALETTE = 0xE4;
 
         private MemoryManager _mmu;
 
@@ -135,6 +153,9 @@ namespace Cavernlore.GameBrick
             {
                 screenData[i] = 128;
             }
+            backgroundPalette = DEFAULT_PALETTE;
+            spritePalette0 = DEFAULT_PALETTE;
+            spritePalette1 = DEFAULT_PALETTE;
         }
 
 
@@ -216,6 +237,14 @@ namespace Cavernlore.GameBrick
                 case 6:
                     //DMA transfer, no read
                     break;
+                case 7:
+                    //BG/Window palette data
+                    return backgroundPalette;
+                case 8:
+                    return spritePalette0;
+                case 9:
+                    return spritePalette1;
+
                 default:
                     return reg[relativeAddress];
             }
@@ -250,6 +279,15 @@ namespace Cavernlore.GameBrick
                 case 6:
                     //DMA transfer
                     DMATransfer(value);
+                    break;
+                case 7:
+                    backgroundPalette = value;
+                    break;
+                case 8:
+                    spritePalette0 = value;
+                    break;
+                case 9:
+                    spritePalette1 = value;
                     break;
                 default:
                     //graphicsMemory[relativeAddress] = value;
@@ -295,7 +333,6 @@ namespace Cavernlore.GameBrick
 
                 int canvasOffset = currentScanLine * 160 * 4; //Where do we start drawing to screen?
 
-                byte color;
                 ushort tileAddress = graphicsMemory[tilemapOffset + tilemapXOffset];
                 if (!BackgroundTileSet && tileAddress < 128)
                     tileAddress += 256;
@@ -317,10 +354,11 @@ namespace Cavernlore.GameBrick
 
                     //Get the pixel value
                     byte pixelValue = (byte)((((lowByte & pixelIndex) > 0) ? 1 : 0) + (((highByte & pixelIndex) > 0) ? 2 : 0));
+                    byte colorValue = GetColor(pixelValue, backgroundPalette);
 
-                    screenData[canvasOffset + 0] = PIXEL_VALUES[pixelValue];
-                    screenData[canvasOffset + 1] = PIXEL_VALUES[pixelValue];
-                    screenData[canvasOffset + 2] = PIXEL_VALUES[pixelValue];
+                    screenData[canvasOffset + 0] = colorValue;
+                    screenData[canvasOffset + 1] = colorValue;
+                    screenData[canvasOffset + 2] = colorValue;
                     screenData[canvasOffset + 3] = 255;
                     canvasOffset += 4;
 
@@ -335,6 +373,12 @@ namespace Cavernlore.GameBrick
                     }
                 }
 
+            }
+
+            //Window Render
+            if (WindowOn)
+            {
+                //TODO
             }
 
             //Sprite Render
@@ -357,7 +401,7 @@ namespace Cavernlore.GameBrick
                         //Sprite coordinates start at 8px to the left and 16px above the upper left corner of the screen
                         spriteY -= 16;
 
-                        if (spriteY <= currentScanLine && spriteY + spriteHeight >= currentScanLine)
+                        if (spriteY <= currentScanLine && spriteY + spriteHeight-1 >= currentScanLine)
                         {
                             spritesToDraw[numOfSprites] = spriteAddress;
                             numOfSprites++;
@@ -376,9 +420,10 @@ namespace Cavernlore.GameBrick
                     bool priority = spriteInformation[spriteAddress + 3].GetBit(7);
                     bool yFlip = spriteInformation[spriteAddress + 3].GetBit(6);
                     bool xFlip = spriteInformation[spriteAddress + 3].GetBit(5);
-                    bool palette = spriteInformation[spriteAddress + 3].GetBit(4);
+                    bool spritePalette = spriteInformation[spriteAddress + 3].GetBit(4);
 
                     int spriteLine = currentScanLine - (spriteY - 16);
+                    if (yFlip) { spriteLine = 8 - spriteLine; }
                     ushort spriteLineAddress = (ushort)(spritePatternAddress + (spriteLine * 2));
                     byte lowByte = graphicsMemory[spriteLineAddress];
                     byte highByte = graphicsMemory[spriteLineAddress + 1];
@@ -388,17 +433,20 @@ namespace Cavernlore.GameBrick
                     for (int x = 0; x < 8; x++)
                     {
                         byte pixelIndex = (byte)(1 << (7 - x));
+                        if (xFlip) { pixelIndex = (byte)(1 << x); }
 
                         //Get the pixel value
                         byte pixelValue = (byte)((((lowByte & pixelIndex) > 0) ? 1 : 0) + (((highByte & pixelIndex) > 0) ? 2 : 0));
+                        byte palette = spritePalette ? spritePalette1 : spritePalette0;
+                        byte colorValue = GetColor(pixelValue, palette);
 
                         if (pixelX >= 0 && pixelX < 160 && pixelValue != 0)
                         {
                             int canvasOffset = startOfLineOnCanvas + (pixelX * 4);
-                            screenData[canvasOffset + 0] = PIXEL_VALUES[pixelValue];
-                            screenData[canvasOffset + 1] = PIXEL_VALUES[pixelValue];
-                            screenData[canvasOffset + 2] = PIXEL_VALUES[pixelValue];
-                            screenData[canvasOffset + 3] = 255;
+                            screenData[canvasOffset + 0] = colorValue; //R
+                            screenData[canvasOffset + 1] = colorValue; //G
+                            screenData[canvasOffset + 2] = colorValue; //B
+                            screenData[canvasOffset + 3] = 255;        //A
                         }
                         pixelX++;
                     }
@@ -406,6 +454,23 @@ namespace Cavernlore.GameBrick
 
                 //throw new NotImplementedException();
             }
+        }
+
+        /// <summary>
+        /// Given a 2-bit index into our palette, return the value to be used for R,G,B
+        /// </summary>
+        /// <param name="pixelValue"></param>
+        /// <returns></returns>
+        private byte GetColor(byte pixelValue, byte palette)
+        {
+            if (pixelValue > 3) { throw new ArgumentOutOfRangeException(); }
+
+            byte paletteIndex = (byte)(pixelValue * 2);
+            byte colorIndex = 0;
+            if (palette.GetBit(paletteIndex)) { colorIndex = colorIndex.SetBit(0); }
+            if (palette.GetBit((byte)(paletteIndex+1))) { colorIndex = colorIndex.SetBit(1); }
+
+            return PIXEL_VALUES[colorIndex];
         }
 
     }
