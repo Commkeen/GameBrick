@@ -392,7 +392,7 @@ namespace Cavernlore.GameBrick
                         //Get the pixel value
                         byte pixelValue = (byte)((((lowByte & pixelIndex) > 0) ? 1 : 0) + (((highByte & pixelIndex) > 0) ? 2 : 0));
 
-                        if (pixelX >= 0 && pixelX < 160)
+                        if (pixelX >= 0 && pixelX < 160 && pixelValue != 0)
                         {
                             int canvasOffset = startOfLineOnCanvas + (pixelX * 4);
                             screenData[canvasOffset + 0] = PIXEL_VALUES[pixelValue];

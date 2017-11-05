@@ -43,7 +43,7 @@ namespace Cavernlore.GameBrick
         {
             int frameClock = 0;
 
-            float frameRateCap = 30.0f;
+            float frameRateCap = 60.0f;
             float millisecondsPerFrame = (1.0f / frameRateCap) * 1000;
 
             while (true)

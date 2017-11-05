@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{516CCA6C-779D-46E4-A324-C9AA303C73BD}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <RootNamespace>GameBrickMonoProj</RootNamespace>
+    <AssemblyName>GameBrickMonoProj</AssemblyName>
+    <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug</OutputPath>
+    <DefineConstants>DEBUG;</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <ConsolePause>false</ConsolePause>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>full</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release</OutputPath>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <ConsolePause>false</ConsolePause>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="..\src\ByteExtensions.cs">
+      <Link>ByteExtensions.cs</Link>
+    </Compile>
+    <Compile Include="..\src\Cpu.cs">
+      <Link>Cpu.cs</Link>
+    </Compile>
+    <Compile Include="..\src\GPU.cs">
+      <Link>GPU.cs</Link>
+    </Compile>
+    <Compile Include="..\src\Input.cs">
+      <Link>Input.cs</Link>
+    </Compile>
+    <Compile Include="..\src\Keys.cs">
+      <Link>Keys.cs</Link>
+    </Compile>
+    <Compile Include="..\src\MemoryManager.cs">
+      <Link>MemoryManager.cs</Link>
+    </Compile>
+    <Compile Include="..\src\Timer.cs">
+      <Link>Timer.cs</Link>
+    </Compile>
+    <Compile Include="..\src\FakeVisualizer.cs">
+      <Link>FakeVisualizer.cs</Link>
+    </Compile>
+    <Compile Include="..\src\IVisualizer.cs">
+      <Link>IVisualizer.cs</Link>
+    </Compile>
+  </ItemGroup>
+  <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
+</Project>

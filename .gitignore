@@ -1,0 +1,14 @@
+
+bin/
+
+assets/
+
+GameBrick\.Host/obj/
+
+GameBrick/GameBrickMonoProj/obj/
+
+\.vs/
+
+debugLog\.txt
+
+*.userprefs

@@ -60,9 +60,11 @@ namespace Cavernlore.GameBrick
         private Input _input;
         private Timer _timer;
 
+        private IVisualizer _visualizer;
+
         public MemoryManager()
         {
-
+            _visualizer = new FakeVisualizer();
         }
 
         public void SetGPU(GPU gpu)
@@ -81,6 +83,11 @@ namespace Cavernlore.GameBrick
             _timer = timer;
         }
 
+        public void SetVisualizer(IVisualizer visualizer)
+        {
+            _visualizer = visualizer;
+        }
+
         public void Reset()
         {
             workingRam = new byte[0x2000];
@@ -97,10 +104,13 @@ namespace Cavernlore.GameBrick
             memoryBank_romBank = 1;
             memoryBank_ramBank = 0;
             memoryBank_mode = false;
+
+            _visualizer.SetROMBank(1);
         }
 
         public byte ReadByte(ushort address)
         {
+            _visualizer.ReadByte(address);
             switch (address & 0xF000)
             {
 
@@ -265,6 +275,7 @@ namespace Cavernlore.GameBrick
 
         public void WriteByte(ushort address, byte value)
         {
+            _visualizer.WriteByte(address, value);
             switch (address & 0xF000)
             {
                 //ROM addresses, memory bank switching instructions are intercepted here
@@ -420,6 +431,7 @@ namespace Cavernlore.GameBrick
         //Return a block of A0 bytes for use with DMA transfers.
         public byte[] ReadDMABlock(byte target)
         {
+            _visualizer.DMA(target);
             ushort address = (ushort)(target * 0x100);
             byte[] result = new byte[0xA0];
             if (address < 0x4000) //ROM0

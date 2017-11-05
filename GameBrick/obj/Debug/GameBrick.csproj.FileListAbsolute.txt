@@ -1,0 +1,6 @@
+C:\Projects\GameBrick\bin\GameBrick.dll
+C:\Projects\GameBrick\bin\GameBrick.pdb
+C:\Projects\GameBrick\GameBrick\obj\Debug\GameBrick.csprojResolveAssemblyReference.cache
+C:\Projects\GameBrick\GameBrick\obj\Debug\GameBrick.dll
+C:\Projects\GameBrick\GameBrick\obj\Debug\GameBrick.pdb
+C:\Projects\GameBrick\GameBrick\obj\Debug\GameBrick.csproj.CoreCompileInputs.cache
