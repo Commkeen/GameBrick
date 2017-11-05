@@ -157,8 +157,8 @@ namespace Cavernlore.GameBrick
             _input.SetKey(Keys.RIGHT, Keyboard.IsKeyPressed(Key.RightArrow));
             _input.SetKey(Keys.UP, Keyboard.IsKeyPressed(Key.UpArrow));
             _input.SetKey(Keys.DOWN, Keyboard.IsKeyPressed(Key.DownArrow));
-            _input.SetKey(Keys.A, Keyboard.IsKeyPressed(Key.A));
-            _input.SetKey(Keys.B, Keyboard.IsKeyPressed(Key.B));
+            _input.SetKey(Keys.A, Keyboard.IsKeyPressed(Key.X));
+            _input.SetKey(Keys.B, Keyboard.IsKeyPressed(Key.Z));
             _input.SetKey(Keys.START, Keyboard.IsKeyPressed(Key.Return));
             _input.SetKey(Keys.SELECT, Keyboard.IsKeyPressed(Key.RightShift));
         }

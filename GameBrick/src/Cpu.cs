@@ -60,9 +60,10 @@ namespace Cavernlore.GameBrick
             if (programCounter == 0x0100)
                 _mmu.inBios = false;
 
-            if (programCounter == 0x03F9)
+            if (programCounter == 0x0355)
             {
-                WriteDebugLine();
+                //showDebug = true;
+                //WriteDebugLine();
             }
 
             if (showDebug && !halt)
